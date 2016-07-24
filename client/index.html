@@ -2,6 +2,7 @@
 <html>
 	<head>
 		<title>Six Degrees of Wikipedia</title>
+		<link href="style.css" rel="stylesheet" type="text/css">
 	</head>
 
 
@@ -9,6 +10,37 @@
 		<h1>Find the shortest path between two pages in Wikipedia</h1>
 
 		<p>Enter the starting page and the destination page and click 'Submit'.  The app will return the shortest path from the former to the latter.</p>
+
+		<nav>
+			<table>
+				<tr>
+					<td><h1>Origin</h1></td>
+					<td><h1>Destination</h1></td>
+				</tr>
+				<tr>
+					<td><select>
+						<option value="volvo">Volvo</option>
+						<option value="saab">Saab</option>
+						<option value="mercedes">Mercedes</option>
+						<option value="audi">Audi</option>
+					</select></td>
+					<td><select>
+						<option value="volvo">Volvo</option>
+						<option value="saab">Saab</option>
+						<option value="mercedes">Mercedes</option>
+						<option value="audi">Audi</option>
+					</select></td>
+				</tr>
+			</table>
+		</nav>
+
+		<nav>
+			<button type="button">Submit</button>
+		</nav>
+
+		<script src="http://code.jquery.com/jquery-2.0.3.min.js"></script>
+		<script src="app.js"></script>
+		<script src="sql/js/sql.js"</script>
 
 	</body>
 </html>

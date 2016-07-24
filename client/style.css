@@ -1,0 +1,38 @@
+body {
+	background: lightcyan;
+	width: 800px;
+	margin: auto;
+}
+
+h1 {
+	color: maroon;
+	text-align: center;
+}
+
+p {
+	color: gray;
+	border: 1px solid gray;
+	padding: 10px;
+}
+
+header, main, footer {
+	min-width: 600px;
+}
+
+td {
+	min-width: 400px;
+	text-align: center;
+}
+
+header, main {
+	background: white;
+}
+
+button {
+	text-align: center;
+	padding: 5px;
+}
+
+nav {
+	text-align: center;
+}
