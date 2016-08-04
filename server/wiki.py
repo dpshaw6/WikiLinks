@@ -1,67 +1,126 @@
-import sys, string,cStringIO, cgi,time,datetime
-from os import curdir, sep
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-from urlparse import urlparse, parse_qs
+#!/usr/bin/python
 
-query_components = parse_qs(urlparse(self.path).query)
-source = query_components["source"] 
-destination = query_components["destination"] 
+import cgi
+import cgitb
+import sqlite3
 
-class MyHandler(BaseHTTPRequestHandler):
+cgitb.enable()
 
-# I WANT TO EXTRACT imsi parameter here and send a success response to 
-# back to the client.
-def do_GET(self):
-    try:
-        if self.path.endswith(".html"):
-            #self.path has /index.htm
-            f = open(curdir + sep + self.path)
-            self.send_response(200)
-            self.send_header('Content-type','text/html')
-            self.end_headers()
-            self.wfile.write("<h1>Device Static Content</h1>")
-            self.wfile.write(f.read())
-            f.close()
-            return
-        if self.path.endswith(".esp"):   #our dynamic content
-            self.send_response(200)
-            self.send_header('Content-type','text/html')
-            self.end_headers()
-            self.wfile.write("<h1>Dynamic Dynamic Content</h1>")
-            self.wfile.write("Today is the " + str(time.localtime()[7]))
-            self.wfile.write(" day in the year " + str(time.localtime()[0]))
-            return
+print("Content-Type: text/html;charset=utf-8")
+print()
 
-        # The root
-        self.send_response(200)
-        self.send_header('Content-type','text/html')
-        self.end_headers()
+# Get the origin and destination as sent from the client
+arguments = cgi.FieldStorage()
+for key in arguments.keys():
+	if key == "origin":
+		origin = arguments[key].value
+	if key == "destination":
+		destination = arguments[key].value
 
-        lst = list(sys.argv[1])
-        n = lst[len(lst) - 1]
-        now = datetime.datetime.now()
+# Spaces in the database are represented by underscores
+origin = origin.replace(" ", "_")
+destination = destination.replace(" ", "_")
 
-        output = cStringIO.StringIO()
-        output.write("<html><head>")
-        output.write("<style type=\"text/css\">")
-        output.write("h1 {color:blue;}")
-        output.write("h2 {color:red;}")
-        output.write("</style>")
-        output.write("<h1>Device #" + n + " Root Content</h1>")
-        output.write("<h2>Device Addr: " + sys.argv[1] + ":" + sys.argv[2] + "</h1>")
-        output.write("<h2>Device Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
-        output.write("</body>")
-        output.write("</html>")
+# Connect to the database (assumed location is on the same machine as this script.
+# I just put a softlink from where I had the actual database to the cgi-bin directory.)
+dbconn = sqlite3.connect("wiki.sql")
 
-        self.wfile.write(output.getvalue())
+print("<head>")
+print("<title>Six Degrees of Wikipedia -- RESULTS!</title>")
+print("</head>")
+print("<body bgcolor=\"lightcyan\" text=\"maroon\"><h1>")
 
-        return
+# Get the origin and destination ids from the database or return an error if 
+# they're not present.
+try:
+	query = "SELECT id FROM page WHERE name = '" + destination +"';"
+	destination_id = dbconn.execute(query).fetchone()[0]
+except TypeError:
+	print("Error: '" + str(arguments["destination"]) + "not found in database.")
+	print("</h1></body></html>")
+	exit()
 
-    except IOError:
-        self.send_error(404,'File Not Found: %s' % self.path)
+try:
+	query = "SELECT id FROM page WHERE name = '" + origin +"';"
+	origin_id = dbconn.execute(query).fetchone()[0]
+except TypeError:
+	print("Error: '" + str(arguments["origin"]) + "not found in database.")
+	print("</h1></body></html>")
+	exit()
 
-#import sqlite3
+# Breadth-First-Search: We will search the potential links at each level of the link 
+# structure, storing previously searched links in a dictionary to reduce the amount
+# of database reads required
+depth = 0
+found = False
+origins = []
+origins.append(origin_id)
+parents = {}
+dest_dict = {}
+while (not found):
+	depth += 1
+	num_origins = len(origins)
+	i_origin = 0
+	i_select_call = 0
+	while i_origin < num_origins:
+		current = origins.pop(0)
+		try:
+			# Check to see if we've already searched the database for this link
+			destinations = dest_dict[current]
+		except KeyError:
+			# Query the database, if necessary
+			query = "SELECT destination_id FROM link WHERE source_id = '" + str(current) + "';"
+			destinations = dbconn.execute(query).fetchall()
+			dest_dict[current] = destinations
+			i_select_call += 1
+		for destination in destinations:
+			# Create a list of parents that a particular destination has
+			try:
+				current_list = parents[destination[0]]
+			except KeyError:
+				current_list = []
+			current_list.append(current) 
+			parents[destination[0]] = current_list
+			if destination[0] == destination_id:
+				# If we've reached the final destination, exit
+				found = True
+				break
+			origins.append(destination[0])
+		i_origin += 1
 
-#sqlite3.connect("wiki.sql")
+	if depth == 6: # It shouldn't get this far but, just so we don't fall into an infinite loop.
+		break
 
-#return "Made it to wiki.py"
+if not found:
+	print("Link exceeds 6 connections!")
+	print("</h1></body></html>")
+	exit()
+
+print ("Found in " + str(depth) + " steps.")
+print("</h1>")
+print("<h2>")
+
+# We know we found the links but now we need to find the path
+next_id_from_top = origin_id
+while depth > 0:
+	next_ids = [destination_id]
+	done = False
+	while not done:
+		next_id = next_ids.pop(0)
+		query = "SELECT name FROM page WHERE id = '" + str(next_id) + "';"
+		dest_name = dbconn.execute(query).fetchone()[0]
+		parent_ids = parents[next_id]
+		for parent_id in parent_ids:
+			query = "SELECT name FROM page WHERE id = '" + str(parent_id) + "';"
+			parent_name = dbconn.execute(query).fetchone()[0]
+			if parent_id == next_id_from_top:
+				done = True
+				break
+			next_ids.append(parent_id)
+
+	print(parent_name.encode('ascii', 'ignore').decode('ascii') + " links to " + dest_name.encode('ascii', 'ignore').decode('ascii'))
+	print("<br>")
+	depth -= 1
+	next_id_from_top = next_id
+
+print("</h2></body></html>")
