@@ -4,7 +4,7 @@ body {
 	margin: auto;
 }
 
-h1 {
+h1, form {
 	color: maroon;
 	text-align: center;
 }
